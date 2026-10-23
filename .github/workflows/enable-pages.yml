@@ -11,30 +11,26 @@ jobs:
   enable:
     runs-on: ubuntu-latest
     steps:
-      - name: Check Actions permissions
-        run: |
-          echo "=== Actions permissions ==="
-          gh api repos/${{ github.repository }}/actions/permissions || true
-          echo "=== Workflow permissions ==="
-          gh api repos/${{ github.repository }}/actions/permissions/workflow || true
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - name: Try to set workflow permissions to read-write
-        run: |
-          gh api -X PUT repos/${{ github.repository }}/actions/permissions/workflow \
-            -f "default_workflow_permissions=write" \
-            -F "can_approve_pull_request_reviews=true" || echo "failed to set workflow permissions"
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - name: Enable Pages
-        run: |
-          gh api -X POST repos/${{ github.repository }}/pages \
-            -f "build_type=workflow" \
-            || echo "Pages may already be enabled or cannot be created"
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - name: Check Pages status
-        run: |
-          gh api repos/${{ github.repository }}/pages || echo "Pages not enabled"
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Enable Pages via github-script
+        uses: actions/github-script@v7
+        with:
+          script: |
+            try {
+              await github.rest.repos.createPagesSite({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                build_type: 'workflow'
+              });
+              console.log('Pages enabled');
+            } catch (e) {
+              console.log('Enable failed: ' + e.message);
+            }
+            try {
+              const res = await github.rest.repos.getPages({
+                owner: context.repo.owner,
+                repo: context.repo.repo
+              });
+              console.log('Pages status: ' + JSON.stringify(res.data));
+            } catch (e) {
+              console.log('Get pages failed: ' + e.message);
+            }
